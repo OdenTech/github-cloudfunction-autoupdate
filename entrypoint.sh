@@ -58,7 +58,7 @@ FUNCTIONS_DIR="${FUNCTIONS_DIR:-functions}"
 
 cd "${FUNCTIONS_DIR}"
 FUNCDIRS=(*)
-mapfile -t FUNCPATHS < <( gcloud functions list --format='get(name)' )
+mapfile -t FUNCPATHS < <( gcloud --project="${PROJECT_ID}" functions list --format='get(name)' )
 
 unset DEPLOYED_FUNCTIONS
 declare -A DEPLOYED_FUNCTIONS
@@ -97,7 +97,7 @@ for funcdir in "${FUNCDIRS[@]}"; do
         # if our current rev has a diff to the deployed rev, we must redeploy
         if ! git diff --quiet "${deployed_sha}" -- "${funcdir}"; then
           echo "Function ${funcdir} differs from deployed SHA ${deployed_sha} in ${location}; redeploying"
-          gcloud functions describe --region "${location}" "${funcdir}" --format=json | \
+          gcloud --project="${PROJECT_ID}" functions describe --region "${location}" "${funcdir}" --format=json | \
             jq -M 'del(.sourceRepository.deployedUrl)' > "/tmp/${funcdir}_request.json"
           RESPONSE="$(curl -fs \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
@@ -120,7 +120,6 @@ for funcdir in "${FUNCDIRS[@]}"; do
   fi
 done
 
-ACCESS_TOKEN="$(gcloud auth print-access-token)"
 for operation in "${OPERATIONS[@]}"; do
   STATUS='{"done": false}'
   while [[ "$(jq -r .done <<<"${STATUS}")" != "true" ]]; do
