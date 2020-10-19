@@ -1,0 +1,6 @@
+name: 'Github to google cloud function auto-deploy'
+description: 'Automatically deploy cloud functions when the head ref diffs from the current ref'
+author: '@n-oden'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
