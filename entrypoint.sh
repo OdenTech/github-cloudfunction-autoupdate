@@ -99,12 +99,13 @@ for funcdir in "${FUNCDIRS[@]}"; do
           echo "Function ${funcdir} differs from deployed SHA ${deployed_sha} in ${location}; redeploying"
           echo "Patch data:"
           gcloud --project="${PROJECT_ID}" functions describe --region "${location}" "${funcdir}" --format=json | \
-            jq -M 'del(.sourceRepository.deployedUrl)' | tee "/tmp/${funcdir}_request.json"
+            jq -M 'del(.sourceRepository.deployedUrl, .buildId, .status, .updateTime, .versionId, .httpsTrigger.url)' | \
+            tee "/tmp/${funcdir}_request.json"
           RESPONSE="$(curl -fs \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
             -X PATCH \
-            "https://cloudfunctions.googleapis.com/v1/projects/${PROJECT_ID}/locations/${location}/functions/${funcdir}?updateMask=sourceRepository.url" \
+            "https://cloudfunctions.googleapis.com/v1/projects/${PROJECT_ID}/locations/${location}/functions/${funcdir}?updateMask=sourceRepository" \
             -d "@/tmp/${funcdir}_request.json")"
           echo "Response:"
           jq -M <<<"${RESPONSE}"
