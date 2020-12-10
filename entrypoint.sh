@@ -97,14 +97,17 @@ for funcdir in "${FUNCDIRS[@]}"; do
         # if our current rev has a diff to the deployed rev, we must redeploy
         if ! git diff --quiet "${deployed_sha}" -- "${funcdir}"; then
           echo "Function ${funcdir} differs from deployed SHA ${deployed_sha} in ${location}; redeploying"
+          echo "Patch data:"
           gcloud --project="${PROJECT_ID}" functions describe --region "${location}" "${funcdir}" --format=json | \
-            jq -M 'del(.sourceRepository.deployedUrl)' > "/tmp/${funcdir}_request.json"
+            jq -M 'del(.sourceRepository.deployedUrl)' | tee "/tmp/${funcdir}_request.json"
           RESPONSE="$(curl -fs \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
             -X PATCH \
             "https://cloudfunctions.googleapis.com/v1/projects/${PROJECT_ID}/locations/${location}/functions/${funcdir}?updateMask=sourceRepository.url" \
             -d "@/tmp/${funcdir}_request.json")"
+          echo "Response:"
+          jq -M <<<"${RESPONSE}"
           OPERATION="$(jq -r .name <<<"${RESPONSE}")"
           echo "Started rollout operation ${OPERATION}"
           OPERATIONS+=("${OPERATION}")
