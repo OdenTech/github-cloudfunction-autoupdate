@@ -92,7 +92,7 @@ for funcdir in "${FUNCDIRS[@]}"; do
       fi
       readarray -td/ deployed_url <<<"$deployed_url"
       deployed_sha="${deployed_url[8]}"
-      echo "Checking function ${funcdir} in location ${location} is at sha ${deployed_sha}"
+      echo "Function ${funcdir} in location ${location} is deployed at sha '${deployed_sha}'; github is at '${GITHUB_SHA}'"
       if [[ "${deployed_sha}" != "${GITHUB_SHA}" ]]; then
         # if our current rev has a diff to the deployed rev, we must redeploy
         if ! git diff --quiet "${deployed_sha}" -- "${funcdir}"; then
