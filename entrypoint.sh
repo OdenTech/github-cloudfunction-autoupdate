@@ -58,7 +58,7 @@ FUNCTIONS_DIR="${FUNCTIONS_DIR:-functions}"
 
 cd "${FUNCTIONS_DIR}"
 FUNCDIRS=(*)
-mapfile -t FUNCPATHS < <( gcloud functions list --format='get(name)' )
+mapfile -t FUNCPATHS < <( gcloud --project="${PROJECT_ID}" functions list --format='get(name)' )
 
 unset DEPLOYED_FUNCTIONS
 declare -A DEPLOYED_FUNCTIONS
@@ -92,19 +92,23 @@ for funcdir in "${FUNCDIRS[@]}"; do
       fi
       readarray -td/ deployed_url <<<"$deployed_url"
       deployed_sha="${deployed_url[8]}"
-      echo "Checking function ${funcdir} in location ${location} is at sha ${deployed_sha}"
+      echo "Function ${funcdir} in location ${location} is deployed at sha '${deployed_sha}'; github is at '${GITHUB_SHA}'"
       if [[ "${deployed_sha}" != "${GITHUB_SHA}" ]]; then
         # if our current rev has a diff to the deployed rev, we must redeploy
         if ! git diff --quiet "${deployed_sha}" -- "${funcdir}"; then
           echo "Function ${funcdir} differs from deployed SHA ${deployed_sha} in ${location}; redeploying"
-          gcloud functions describe --region "${location}" "${funcdir}" --format=json | \
-            jq -M 'del(.sourceRepository.deployedUrl)' > "/tmp/${funcdir}_request.json"
+          echo "Patch data:"
+          gcloud --project="${PROJECT_ID}" functions describe --region "${location}" "${funcdir}" --format=json | \
+            jq -M 'del(.sourceRepository.deployedUrl, .buildId, .status, .updateTime, .versionId, .httpsTrigger.url)' | \
+            tee "/tmp/${funcdir}_request.json"
           RESPONSE="$(curl -fs \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/json" \
             -X PATCH \
-            "https://cloudfunctions.googleapis.com/v1/projects/${PROJECT_ID}/locations/${location}/functions/${funcdir}?updateMask=sourceRepository.url" \
+            "https://cloudfunctions.googleapis.com/v1/projects/${PROJECT_ID}/locations/${location}/functions/${funcdir}?updateMask=sourceRepository" \
             -d "@/tmp/${funcdir}_request.json")"
+          echo "Response:"
+          jq -M <<<"${RESPONSE}"
           OPERATION="$(jq -r .name <<<"${RESPONSE}")"
           echo "Started rollout operation ${OPERATION}"
           OPERATIONS+=("${OPERATION}")
@@ -120,7 +124,6 @@ for funcdir in "${FUNCDIRS[@]}"; do
   fi
 done
 
-ACCESS_TOKEN="$(gcloud auth print-access-token)"
 for operation in "${OPERATIONS[@]}"; do
   STATUS='{"done": false}'
   while [[ "$(jq -r .done <<<"${STATUS}")" != "true" ]]; do
